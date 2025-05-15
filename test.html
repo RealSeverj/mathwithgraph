@@ -1,0 +1,58 @@
+<html>
+<div id="normalPlot" style="width:100%;height:400px;"></div>
+<script src="https://cdn.plot.ly/plotly-2.30.0.min.js"></script>
+<script type="text/javascript">
+document.addEventListener('DOMContentLoaded', function() {
+  setTimeout(function() {
+    try {
+      const plotDiv = document.getElementById('normalPlot');
+      if(plotDiv && window.Plotly) {
+        // Generate x values
+        const x = [];
+        for (let i = -400; i <= 400; i++) {
+          x.push(i / 100);
+        }
+
+        // Calculate y values for standard normal distribution (mu=0, sigma=1)
+        const y = x.map(val => {
+          const mu = 0;
+          const sigma = 1;
+          const exponent = -Math.pow(val - mu, 2) / (2 * Math.pow(sigma, 2));
+          const coefficient = 1 / (sigma * Math.sqrt(2 * Math.PI));
+          return coefficient * Math.exp(exponent);
+        });
+
+        const trace = {
+          x: x,
+          y: y,
+          type: 'scatter',
+          mode: 'lines',
+          name: '概率密度函数',
+          line: {
+            color: 'rgb(55, 128, 191)',
+            width: 2
+          }
+        };
+
+        const layout = {
+          title: '标准正态分布概率密度函数 (μ=0, σ=1)',
+          xaxis: {
+            title: 'X 值'
+          },
+          yaxis: {
+            title: '概率密度'
+          },
+          hovermode: 'closest'
+        };
+
+        Plotly.newPlot(plotDiv, [trace], layout);
+      } else {
+        console.error('Plot div not found or Plotly not loaded');
+      }
+    } catch(e) {
+      console.error('Error creating plot:', e);
+    }
+  }, 300); // Give Plotly some extra time to load
+});
+</script>
+</html>
