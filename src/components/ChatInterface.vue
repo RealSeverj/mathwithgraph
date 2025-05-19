@@ -23,7 +23,7 @@ const systemPrompt = `
 4. 你可以使用<draw>标签来画画，你只要说出格式为<draw>图片描述</draw>就可以进行画画，且你喜欢日本动漫风格的画
 5. 你可以使用<html>标签渲染HTML内容，特别适合数学图形和函数可视化，格式为<html>HTML代码</html>
 6. 你可以正常使用Markdown格式化文本，也可以使用MathJax展示数学公式。在html图像中尽量使用中文进行展示
-7. 在讲解数学知识时，你会充分利用你的画画能力，例如<html>来帮助用户更好地理解各种概念。
+7. 在讲解数学知识时，你会充分利用你的<html>能力来帮助用户更好地理解各种概念，请尽量减少在数学讲解中使用<draw>。
 
 示例:
 - 当用户想要一张猫的图片，可以回复：这是一张猫的图片 <draw>a photorealistic cat sitting on a windowsill looking outside</draw>
@@ -56,32 +56,32 @@ document.addEventListener('DOMContentLoaded', function() {
 // 向AI发送消息
 async function sendMessage() {
   if (!userInput.value.trim()) return
-  
+
   const userMessage = userInput.value
   userInput.value = ''
-  
+
   // 添加用户消息到聊天记录
   messages.value.push({
     role: 'user',
     content: userMessage
   })
-  
+
   isLoading.value = true
   error.value = null
-  
+
   try {
     // 准备消息历史
     const history = messages.value.map(msg => ({
       role: msg.role,
       parts: [{ text: msg.content }]
     }))
-    
+
     // 每次对话都添加系统提示，确保AI记住其角色设定
     history.unshift({
       role: 'model',
       parts: [{ text: systemPrompt }]
     })
-    
+
     // 调用Gemini API
     const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${API_KEY}`, {
       method: 'POST',
@@ -98,13 +98,13 @@ async function sendMessage() {
         }
       })
     })
-    
+
     const data = await response.json()
-    
+
     if (data.error) {
       throw new Error(data.error.message || 'API调用失败')
     }
-    
+
     let aiResponse = data.candidates[0].content.parts[0].text
     console.log('AI 返回的内容:', aiResponse)
     // 处理响应中的特殊标签（实际渲染将在MarkdownRenderer组件中完成）
@@ -113,7 +113,7 @@ async function sendMessage() {
       content: aiResponse,
       processed: false
     })
-    
+
   } catch (err) {
     error.value = err.message || '与AI通信时出错'
     console.error('API错误:', err)
@@ -127,7 +127,7 @@ async function generateImage(prompt) {
   try {
     // 准备内容
     const contents = `Generate an image of: ${prompt}`;
-    
+
     // 使用正确的 API 调用方式
     const response = await genAI.models.generateContent({
       model: IMAGEN_MODEL,
@@ -136,15 +136,15 @@ async function generateImage(prompt) {
         responseModalities: [Modality.TEXT, Modality.IMAGE],
       },
     });
-    
+
     // 处理响应
     if (!response.candidates || response.candidates.length === 0) {
       throw new Error('图像生成失败 - 没有收到候选结果');
     }
-    
+
     // 提取图像数据
     let imageData = null;
-    
+
     for (const part of response.candidates[0].content.parts) {
       if (part.text) {
         console.log('AI 返回的文本说明:', part.text);
@@ -153,11 +153,11 @@ async function generateImage(prompt) {
         break;
       }
     }
-    
+
     if (!imageData) {
       throw new Error('未能获取图像数据');
     }
-    
+
     return imageData;
   } catch (err) {
     console.error('图像生成错误:', err)
@@ -187,20 +187,20 @@ async function generateImage(prompt) {
           </div>
         </div>
       </div>
-      
+
       <div v-for="(message, index) in messages" :key="index" class="message" :class="message.role">
         <div class="message-header">
           <strong>{{ message.role === 'user' ? '您' : '锐锐' }}</strong>
         </div>
         <div class="message-content">
-          <MarkdownRenderer 
-            :content="message.content" 
-            :generateImage="generateImage" 
-            :messageId="`msg-${index}`" 
+          <MarkdownRenderer
+            :content="message.content"
+            :generateImage="generateImage"
+            :messageId="`msg-${index}`"
           />
         </div>
       </div>
-      
+
       <div v-if="isLoading" class="message model loading">
         <div class="message-header"><strong>锐锐</strong></div>
         <div class="message-content">
@@ -209,17 +209,17 @@ async function generateImage(prompt) {
           </div>
         </div>
       </div>
-      
+
       <div v-if="error" class="error-message">
         {{ error }}
       </div>
     </div>
-    
+
     <div class="input-container">
-      <textarea 
-        v-model="userInput" 
+      <textarea
+        v-model="userInput"
         @keydown.enter.prevent="sendMessage"
-        placeholder="输入您的问题..." 
+        placeholder="输入您的问题..."
         rows="3"
       ></textarea>
       <button @click="sendMessage" :disabled="isLoading || !userInput.trim()">
@@ -497,79 +497,79 @@ button:disabled {
   .chat-container {
     background-color: rgba(18, 18, 18, 0.6);
   }
-  
+
   .empty-state {
     background-color: rgba(40, 40, 40, 0.8);
     color: #ddd;
     border-color: rgba(60, 60, 60, 0.5);
   }
-  
+
   .empty-state h2 {
     color: #8ab4f8;
   }
-  
+
   .example-container h3 {
     color: #bbb;
   }
-  
+
   .example-card {
     background-color: rgba(40, 40, 40, 0.9);
     border-color: #444;
     box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
   }
-  
+
   .example-card:hover {
     background-color: #1a3b5c;
     border-color: #8ab4f8;
     box-shadow: 0 6px 12px rgba(138, 180, 248, 0.15);
   }
-  
+
   .example-card p {
     color: #ddd;
   }
-  
+
   .message.user {
     background-color: rgba(26, 59, 92, 0.95);
     border-left-color: #8ab4f8;
   }
-  
+
   .message.model {
     background-color: rgba(42, 42, 42, 0.95);
     border-color: rgba(68, 68, 68, 0.5);
     border-right-color: #81c784;
   }
-  
+
   .message-header {
     color: #bbb;
   }
-  
+
   .input-container {
     background-color: rgba(30, 30, 30, 0.8);
     border-top-color: rgba(68, 68, 68, 0.5);
   }
-  
+
   textarea {
     background-color: rgba(42, 42, 42, 0.9);
     border-color: rgba(68, 68, 68, 0.8);
     color: #ddd;
   }
-  
+
   textarea:focus {
     border-color: #8ab4f8;
     box-shadow: 0 0 0 3px rgba(138, 180, 248, 0.25);
   }
-  
+
   button {
     background-color: #8ab4f8;
     color: #121212;
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
   }
-  
+
   button:hover:not(:disabled) {
     background-color: #aecbfa;
     box-shadow: 0 6px 12px rgba(0, 0, 0, 0.4);
   }
-  
+
   .error-message {
     background-color: rgba(78, 40, 40, 0.95);
     color: #ff9a9a;
