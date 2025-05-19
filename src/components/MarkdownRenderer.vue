@@ -238,61 +238,137 @@ function insertHtmlToDom(id, htmlContent) {
       
       // 首先设置非脚本HTML内容
       const sanitizedHtml = DOMPurify.sanitize(mainContent, {
-        ADD_TAGS: ['div', 'style'],
-        ADD_ATTR: ['id', 'class', 'style']
+        ADD_TAGS: ['div', 'style', 'svg', 'path', 'rect', 'circle', 'line', 'polyline', 'polygon', 'g', 'defs', 'marker'],
+        ADD_ATTR: ['id', 'class', 'style', 'viewBox', 'd', 'cx', 'cy', 'r', 'x', 'y', 'width', 'height', 
+                   'fill', 'stroke', 'stroke-width', 'points', 'transform', 'font-size', 'font-family', 'text-anchor']
       })
       container.innerHTML = sanitizedHtml
       
+      // 创建一个独立的处理上下文，避免多个HTML块之间的冲突
+      const containerContext = {
+        container: container,
+        id: id,
+        completedScripts: 0,
+        totalScripts: scriptContents.length
+      }
+      
       // 处理外部脚本和内联脚本
-      const loadExternalScripts = (index = 0) => {
-        if (index >= scriptContents.length) return
+      const loadExternalScripts = (context, index = 0) => {
+        if (index >= context.totalScripts) return
         
         const scriptInfo = scriptContents[index]
         const newScript = document.createElement('script')
         
         if (scriptInfo.type) newScript.type = scriptInfo.type
         
+        // 为每个脚本添加唯一标识，防止冲突
+        newScript.setAttribute('data-container-id', context.id)
+        
         if (scriptInfo.src) {
           // 外部脚本
           newScript.src = scriptInfo.src
           newScript.onload = () => {
+            context.completedScripts++
             // 加载下一个脚本
-            loadExternalScripts(index + 1)
+            setTimeout(() => loadExternalScripts(context, index + 1), 50)
           }
           newScript.onerror = () => {
-            loadExternalScripts(index + 1)
+            console.error(`脚本加载错误: ${scriptInfo.src}`)
+            context.completedScripts++
+            setTimeout(() => loadExternalScripts(context, index + 1), 50)
           }
-          document.body.appendChild(newScript)
+          // 将脚本附加到容器内而不是body，隔离作用域
+          container.appendChild(newScript)
         } else {
-          // 内联脚本 - 移除DOMContentLoaded事件监听
-          let scriptContent = scriptInfo.content
-          // 替换DOMContentLoaded事件监听，并绑定到特定容器
-          scriptContent = scriptContent.replace(
-            /document\.addEventListener\(['"]DOMContentLoaded['"],\s*function\s*\(\)\s*\{([\s\S]*?)\}\);?/g,
-            `(function() {$1})();`
-          )
-          
-          // 添加一个容器引用，确保脚本使用正确的容器
-          scriptContent = `(function() {
-            const container = document.getElementById('${id}');
-            ${scriptContent}
-          })();`
-          
-          newScript.appendChild(document.createTextNode(scriptContent))
-          document.body.appendChild(newScript)
-          // 继续下一个
-          loadExternalScripts(index + 1)
+          // 内联脚本 - 确保脚本在正确的容器上下文中执行
+          try {
+            let scriptContent = scriptInfo.content
+            
+            // 替换可能的全局选择器，限制在当前容器内
+            scriptContent = scriptContent.replace(/document\.querySelector\(['"]([^'"]+)['"]\)/g, 
+              `document.getElementById('${context.id}').querySelector('$1')`)
+            scriptContent = scriptContent.replace(/document\.querySelectorAll\(['"]([^'"]+)['"]\)/g, 
+              `document.getElementById('${context.id}').querySelectorAll('$1')`)
+            scriptContent = scriptContent.replace(/document\.getElementById\(['"]([^'"]+)['"]\)/g, 
+              `(function(id) { const el = document.getElementById(id); return el && (el.closest('#${context.id}') ? el : null); })('$1')`)
+            
+            // 创建一个沙箱环境，避免全局变量污染
+            const sandboxScript = `
+              (function() {
+                try {
+                  // 创建沙箱环境
+                  const containerElement = document.getElementById('${context.id}');
+                  if (!containerElement) {
+                    console.error('容器元素不存在:', '${context.id}');
+                    return;
+                  }
+                  
+                  const sandbox = {
+                    container: containerElement,
+                    window: window,
+                    document: {
+                      // 重写选择器方法，限制在当前容器内
+                      querySelector: function(sel) { return containerElement.querySelector(sel); },
+                      querySelectorAll: function(sel) { return containerElement.querySelectorAll(sel); },
+                      getElementById: function(id) { 
+                        const el = document.getElementById(id);
+                        return el && (el.closest('#${context.id}') ? el : null);
+                      },
+                      // 确保事件监听器正确传递
+                      addEventListener: function(type, listener, options) {
+                        if (type === 'DOMContentLoaded') {
+                          // 对于DOMContentLoaded事件，立即执行，因为此时DOM已经加载完成
+                          setTimeout(listener, 0);
+                        } else {
+                          // 将事件监听器限制在当前容器内
+                          containerElement.addEventListener(type, listener, options);
+                        }
+                      },
+                      removeEventListener: function(type, listener, options) {
+                        containerElement.removeEventListener(type, listener, options);
+                      },
+                      // 保留对原始document其他属性的访问
+                      ...document
+                    }
+                  };
+                  
+                  // 在沙箱中执行脚本
+                  with (sandbox) {
+                    ${scriptContent}
+                  }
+                } catch (error) {
+                  console.error('执行内联脚本时出错:', error, error.stack);
+                }
+              })();
+            `;
+            
+            // 创建文本节点并添加到脚本
+            newScript.textContent = sandboxScript;
+            
+            // 将脚本附加到容器
+            container.appendChild(newScript);
+            
+            context.completedScripts++;
+            // 继续下一个
+            setTimeout(() => loadExternalScripts(context, index + 1), 50);
+          } catch (error) {
+            console.error('处理内联脚本时出错:', error, error.stack);
+            context.completedScripts++;
+            // 继续下一个，即使当前脚本失败
+            setTimeout(() => loadExternalScripts(context, index + 1), 50);
+          }
         }
       }
       
-      // 开始加载脚本
-      loadExternalScripts()
+      // 开始加载脚本，使用创建的上下文
+      if (scriptContents.length > 0) {
+        setTimeout(() => loadExternalScripts(containerContext), 100)
+      }
     }
   } catch (error) {
-    console.error('处理HTML标签时出错:', error)
+    console.error('处理HTML标签时出错:', error, error.stack)
   }
 }
-
 // 监听内容变化
 watch(() => props.content, renderContent, { immediate: true })
 </script>

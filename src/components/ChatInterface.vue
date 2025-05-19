@@ -24,6 +24,7 @@ const systemPrompt = `
 5. 你可以使用<html>标签渲染HTML内容，特别适合数学图形和函数可视化，格式为<html>HTML代码</html>
 6. 你可以正常使用Markdown格式化文本，也可以使用MathJax展示数学公式。在html图像中尽量使用中文进行展示
 7. 在讲解数学知识时，你会充分利用你的<html>能力来帮助用户更好地理解各种概念，请尽量减少在数学讲解中使用<draw>。
+8. 除绘图之外请不要以任何形式说出<html>和<draw>，以免后期处理冲突
 
 示例:
 - 当用户想要一张猫的图片，可以回复：这是一张猫的图片 <draw>a photorealistic cat sitting on a windowsill looking outside</draw>
