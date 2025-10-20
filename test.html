@@ -1,31 +1,123 @@
-<html><div id="plot2"></div>
-<script src="https://cdn.plot.ly/plotly-2.30.0.min.js"></script>
-<script type="text/javascript">
-document.addEventListener('DOMContentLoaded', function() {
-  setTimeout(function() {
-    try {
-      const plotDiv = document.getElementById('plot2');
-      if(plotDiv && window.Plotly) {
-        const xValues = Array.from({length: 100}, (_, i) => (i - 50) * 0.1);
-        const yValues = xValues.map(x => Math.exp(x));
-        Plotly.newPlot(plotDiv, [{
-          x: xValues,
-          y: yValues,
-          type: 'scatter',
-          mode: 'lines',
-          name: 'y = eˣ'
-        }], {
-          margin: { t: 20, b: 20, l: 30, r: 20 },
-          xaxis: { title: 'x' },
-          yaxis: { title: 'y' },
-          title: '函数 y = eˣ 的图像'
-        });
-      } else {
-        console.error('Plot div not found or Plotly not loaded');
-      }
-    } catch(e) {
-      console.error('Error creating plot:', e);
-    }
-  }, 500);
-});
-</script></html>
+<htmath><html>
+<head>
+<style>
+  .container {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    padding: 10px;
+    border: 1px solid #eee;
+    border-radius: 8px;
+    background-color: #f9f9f9;
+  }
+  .array-row {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+  .array-label {
+    font-weight: bold;
+    color: #333;
+    width: 120px;
+    flex-shrink: 0;
+  }
+  .array-elements {
+    display: flex;
+    gap: 2px;
+    border: 1px solid #ccc;
+    padding: 5px;
+    border-radius: 4px;
+    background-color: #fff;
+  }
+  .array-element {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 30px;
+    height: 30px;
+    border: 1px solid #aaa;
+    border-radius: 3px;
+    background-color: #f0f0f0;
+    color: #333;
+    font-weight: bold;
+    transition: background-color 0.5s ease;
+  }
+  .pivot {
+    background-color: #FFD700 !important; /* Gold */
+    border-color: #DAA520 !important;
+  }
+  .smaller {
+    background-color: #ADD8E6 !important; /* Light Blue */
+    border-color: #87CEEB !important;
+  }
+  .larger {
+    background-color: #FFB6C1 !important; /* Light Pink */
+    border-color: #FF69B4 !important;
+  }
+  .sorted-pivot {
+    background-color: #90EE90 !important; /* Light Green */
+    border-color: #32CD32 !important;
+  }
+</style>
+</head>
+<body>
+
+<div class="container">
+  <h3>快速排序一步可视化</h3>
+
+  <div class="array-row">
+    <div class="array-label">初始数组：</div>
+    <div class="array-elements">
+      <div class="array-element">7</div>
+      <div class="array-element">2</div>
+      <div class="array-element">1</div>
+      <div class="array-element">6</div>
+      <div class="array-element">8</div>
+      <div class="array-element">5</div>
+      <div class="array-element">3</div>
+      <div class="array-element">4</div>
+    </div>
+  </div>
+
+  <div class="array-row">
+    <div class="array-label">选择基准（`4`）：</div>
+    <div class="array-elements">
+      <div class="array-element">7</div>
+      <div class="array-element">2</div>
+      <div class="array-element">1</div>
+      <div class="array-element">6</div>
+      <div class="array-element">8</div>
+      <div class="array-element">5</div>
+      <div class="array-element">3</div>
+      <div class="array-element pivot">4</div>
+    </div>
+  </div>
+
+  <div class="array-row">
+    <div class="array-label">分区后：</div>
+    <div class="array-elements">
+      <div class="array-element smaller">2</div>
+      <div class="array-element smaller">1</div>
+      <div class="array-element smaller">3</div>
+      <div class="array-element sorted-pivot">4</div>
+      <div class="array-element larger">7</div>
+      <div class="array-element larger">6</div>
+      <div class="array-element larger">8</div>
+      <div class="array-element larger">5</div>
+    </div>
+  </div>
+
+  <div class="array-row" style="margin-top: 10px;">
+    <div class="array-label"><i>接下来：</i></div>
+    <div class="array-elements" style="border: none; background-color: transparent; padding: 0;">
+      <span style="color: #ADD8E6; font-weight: bold;">左子数组 `[2, 1, 3]`</span>
+      <span style="margin: 0 10px; color: #666;">和</span>
+      <span style="color: #FFB6C1; font-weight: bold;">右子数组 `[7, 6, 8, 5]`</span>
+      <span style="margin-left: 10px; color: #666;">将继续递归排序！</span>
+    </div>
+  </div>
+</div>
+
+</body>
+</html></htmath>

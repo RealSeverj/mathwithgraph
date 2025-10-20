@@ -4,166 +4,98 @@ import { marked } from 'marked'
 import DOMPurify from 'dompurify'
 
 const props = defineProps({
-  content: {
-    type: String,
-    required: true
-  },
-  generateImage: {
-    type: Function,
-    required: true
-  },
-  messageId: { // 添加消息ID属性以区分不同消息
-    type: String,
-    required: true
-  }
+  content: { type: String, required: true },
+  generateImage: { type: Function, required: true },
+  messageId: { type: String, required: true }
 })
 
 const renderedContent = ref('')
 const processingComplete = ref(false)
-const imageElements = ref([]) // 存储图像元素引用
-const contentCopy = ref('') // 存储处理中的内容副本
+const imageElements = ref([])
+const contentCopy = ref('')
+const iframeRegistry = new Map()
+let iframeResizeListenerInstalled = false
 
-// 配置DOMPurify允许data URLs
 onMounted(() => {
-  // 配置DOMPurify允许data URLs
   DOMPurify.addHook('afterSanitizeAttributes', function(node) {
-    // 对于图片标签，允许data URL
     if (node.tagName === 'IMG' && node.getAttribute('src')) {
-      const src = node.getAttribute('src');
-      if (src.startsWith('data:image/')) {
-        // 允许data URL
-        return node;
-      }
+      const src = node.getAttribute('src')
+      if (src.startsWith('data:image/')) return node
     }
-  });
+  })
 
-  // 加载MathJax库并初始化
   if (!window.MathJax) {
     const script = document.createElement('script')
     script.src = 'https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js'
     script.async = true
-    
-    // 配置MathJax
     window.MathJax = {
       tex: {
         inlineMath: [['$', '$'], ['\\(', '\\)']],
         displayMath: [['$$', '$$'], ['\\[', '\\]']],
         processEscapes: true
       },
-      svg: {
-        fontCache: 'global'
-      }
+      svg: { fontCache: 'global' }
     }
-    
     document.head.appendChild(script)
   }
 })
 
-// 渲染数学公式
 function renderMathJax() {
   if (window.MathJax) {
     if (window.MathJax.typesetPromise) {
-      window.MathJax.typesetPromise()
-        .catch((err) => console.error('MathJax处理失败:', err))
+      window.MathJax.typesetPromise().catch((err) => console.error('MathJax处理失败:', err))
     } else if (window.MathJax.Hub) {
-      // MathJax 2.x 版本
       window.MathJax.Hub.Queue(['Typeset', window.MathJax.Hub])
     }
   }
 }
 
-// 处理并渲染内容
 async function renderContent() {
-  // 创建一个内容的副本，以便在处理过程中修改
   let content = props.content
   contentCopy.value = content
   processingComplete.value = false
-  
-  // 清空图像元素缓存
   imageElements.value = []
-  
-  // 处理<draw>标签
+
   const drawRegex = /<draw>(.*?)<\/draw>/gs
   const drawMatches = [...content.matchAll(drawRegex)]
-  
-  // 创建一个映射表来存储每个占位符ID与其对应的替换内容
   const placeholderMap = new Map()
-  
-  // 首先，为所有的<draw>标签生成唯一ID和占位符
+
   for (let i = 0; i < drawMatches.length; i++) {
     const fullMatch = drawMatches[i][0]
     const promptText = drawMatches[i][1]
-    
-    // 生成真正唯一的ID，包含消息ID和索引
     const imageId = `img-${props.messageId}-${i}-${Date.now()}`
     const placeholder = `<div id="${imageId}" class="image-placeholder loading">正在生成图像...</div>`
-    
-    // 存储映射关系
-    placeholderMap.set(fullMatch, {
-      id: imageId,
-      placeholder: placeholder,
-      promptText: promptText
-    })
-    
-    // 替换内容中的标签为占位符
+    placeholderMap.set(fullMatch, { id: imageId, placeholder, promptText })
     contentCopy.value = contentCopy.value.replace(fullMatch, placeholder)
   }
-  
-  // 更新渲染内容，显示所有占位符
+
   renderedContent.value = await parseMarkdown(contentCopy.value)
-  
-  // 处理<html>标签
-  const htmlRegex = /<html>(.*?)<\/html>/gs
+
+  const htmlRegex = /<htmath>([\s\S]*?)<\/htmath>/gi
   const htmlMatches = [...contentCopy.value.matchAll(htmlRegex)]
-  
-  // 同样为所有HTML标签生成唯一ID和占位符
+
   for (let i = 0; i < htmlMatches.length; i++) {
     const fullMatch = htmlMatches[i][0]
     const htmlContent = htmlMatches[i][1]
-    
-    // 生成真正唯一的ID
     const divId = `html-${props.messageId}-${i}-${Date.now()}`
     const placeholder = `<div id="${divId}" class="html-container"></div>`
-    
-    // 替换HTML标签为占位符
     contentCopy.value = contentCopy.value.replace(fullMatch, placeholder)
-    
-    // 更新渲染内容
     renderedContent.value = await parseMarkdown(contentCopy.value)
-    
-    // 处理HTML内容
-    setTimeout(() => {
-      insertHtmlToDom(divId, htmlContent)
-    }, 500)
+    setTimeout(() => insertHtmlToDom(divId, htmlContent), 0)
   }
-  
-  // 如果没有特殊标签，直接渲染Markdown
+
   if (drawMatches.length === 0 && htmlMatches.length === 0) {
     renderedContent.value = await parseMarkdown(content)
-    // 渲染公式
-    setTimeout(renderMathJax, 100)
+    setTimeout(renderMathJax, 50)
   }
-  
-  // 现在开始处理每个图像
-  for (const [fullMatch, data] of placeholderMap.entries()) {
+
+  for (const [, data] of placeholderMap.entries()) {
     try {
-      // 已经有占位符了，现在生成图像
       const imageData = await props.generateImage(data.promptText)
-      
       if (imageData) {
-        // 存储图像信息
-        imageElements.value.push({
-          id: data.id,
-          data: imageData,
-          alt: data.promptText
-        })
-        
-        // 插入图像
-        setTimeout(() => {
-          insertImageToDom(data.id, imageData, data.promptText)
-        }, 100)
+        imageElements.value.push({ id: data.id, data: imageData, alt: data.promptText })
+        setTimeout(() => insertImageToDom(data.id, imageData, data.promptText), 0)
       } else {
-        // 替换占位符为错误信息
         const errorDiv = document.getElementById(data.id)
         if (errorDiv) {
           errorDiv.className = 'image-error'
@@ -174,13 +106,11 @@ async function renderContent() {
       console.error('处理图像标签时出错:', error)
     }
   }
-  
-  // 最后渲染公式
-  setTimeout(renderMathJax, 300)
+
+  setTimeout(renderMathJax, 150)
   processingComplete.value = true
 }
 
-// 解析Markdown
 async function parseMarkdown(text) {
   return DOMPurify.sanitize(marked.parse(text), {
     ADD_TAGS: ['div', 'style', 'img'],
@@ -188,188 +118,102 @@ async function parseMarkdown(text) {
   })
 }
 
-// 直接在DOM中插入图像元素
 function insertImageToDom(id, imageData, altText) {
   const container = document.getElementById(id)
   if (container) {
-    // 清除加载指示器相关类
     container.classList.remove('loading', 'image-placeholder')
     container.classList.add('image-container')
     container.textContent = ''
-    
-    // 创建图像元素
     const img = document.createElement('img')
     img.src = `data:image/jpeg;base64,${imageData}`
     img.alt = altText
     img.className = 'generated-image'
-    
-    // 添加到容器中
     container.appendChild(img)
   } else {
     console.error('找不到图像容器:', id)
   }
 }
 
-// 在DOM中插入HTML内容
+// 使用 sandboxed iframe 渲染 <htmath> 内容
 function insertHtmlToDom(id, htmlContent) {
   try {
     const container = document.getElementById(id)
-    if (container) {
-      // 为了解决Plotly的加载问题，先提取所有script标签
-      let scriptContents = []
-      let mainContent = htmlContent
-      
-      // 分离非脚本内容和脚本内容
-      const scriptRegex = /<script\b[^>]*>([\s\S]*?)<\/script>/gi
-      mainContent = htmlContent.replace(scriptRegex, (match, scriptContent) => {
-        const scriptTag = document.createElement('div')
-        scriptTag.innerHTML = match
-        const script = scriptTag.firstChild
-        
-        // 收集脚本内容和属性
-        scriptContents.push({
-          src: script.getAttribute('src'),
-          type: script.getAttribute('type'),
-          content: scriptContent
-        })
-        
-        return '' // 从HTML中删除script标签
-      })
-      
-      // 首先设置非脚本HTML内容
-      const sanitizedHtml = DOMPurify.sanitize(mainContent, {
-        ADD_TAGS: ['div', 'style', 'svg', 'path', 'rect', 'circle', 'line', 'polyline', 'polygon', 'g', 'defs', 'marker'],
-        ADD_ATTR: ['id', 'class', 'style', 'viewBox', 'd', 'cx', 'cy', 'r', 'x', 'y', 'width', 'height', 
-                   'fill', 'stroke', 'stroke-width', 'points', 'transform', 'font-size', 'font-family', 'text-anchor']
-      })
-      container.innerHTML = sanitizedHtml
-      
-      // 创建一个独立的处理上下文，避免多个HTML块之间的冲突
-      const containerContext = {
-        container: container,
-        id: id,
-        completedScripts: 0,
-        totalScripts: scriptContents.length
-      }
-      
-      // 处理外部脚本和内联脚本
-      const loadExternalScripts = (context, index = 0) => {
-        if (index >= context.totalScripts) return
-        
-        const scriptInfo = scriptContents[index]
-        const newScript = document.createElement('script')
-        
-        if (scriptInfo.type) newScript.type = scriptInfo.type
-        
-        // 为每个脚本添加唯一标识，防止冲突
-        newScript.setAttribute('data-container-id', context.id)
-        
-        if (scriptInfo.src) {
-          // 外部脚本
-          newScript.src = scriptInfo.src
-          newScript.onload = () => {
-            context.completedScripts++
-            // 加载下一个脚本
-            setTimeout(() => loadExternalScripts(context, index + 1), 50)
-          }
-          newScript.onerror = () => {
-            console.error(`脚本加载错误: ${scriptInfo.src}`)
-            context.completedScripts++
-            setTimeout(() => loadExternalScripts(context, index + 1), 50)
-          }
-          // 将脚本附加到容器内而不是body，隔离作用域
-          container.appendChild(newScript)
-        } else {
-          // 内联脚本 - 确保脚本在正确的容器上下文中执行
+    if (!container) return
+
+    // 先放置加载指示器
+    container.innerHTML = '<div class="iframe-loading-indicator"><div class="spinner"></div><span>正在加载可视化...</span></div>'
+    const resizeScript = `
+      <script>(function(){
+        function send(){
           try {
-            let scriptContent = scriptInfo.content
-            
-            // 替换可能的全局选择器，限制在当前容器内
-            scriptContent = scriptContent.replace(/document\.querySelector\(['"]([^'"]+)['"]\)/g, 
-              `document.getElementById('${context.id}').querySelector('$1')`)
-            scriptContent = scriptContent.replace(/document\.querySelectorAll\(['"]([^'"]+)['"]\)/g, 
-              `document.getElementById('${context.id}').querySelectorAll('$1')`)
-            scriptContent = scriptContent.replace(/document\.getElementById\(['"]([^'"]+)['"]\)/g, 
-              `(function(id) { const el = document.getElementById(id); return el && (el.closest('#${context.id}') ? el : null); })('$1')`)
-            
-            // 创建一个沙箱环境，避免全局变量污染
-            const sandboxScript = `
-              (function() {
-                try {
-                  // 创建沙箱环境
-                  const containerElement = document.getElementById('${context.id}');
-                  if (!containerElement) {
-                    console.error('容器元素不存在:', '${context.id}');
-                    return;
-                  }
-                  
-                  const sandbox = {
-                    container: containerElement,
-                    window: window,
-                    document: {
-                      // 重写选择器方法，限制在当前容器内
-                      querySelector: function(sel) { return containerElement.querySelector(sel); },
-                      querySelectorAll: function(sel) { return containerElement.querySelectorAll(sel); },
-                      getElementById: function(id) { 
-                        const el = document.getElementById(id);
-                        return el && (el.closest('#${context.id}') ? el : null);
-                      },
-                      // 确保事件监听器正确传递
-                      addEventListener: function(type, listener, options) {
-                        if (type === 'DOMContentLoaded') {
-                          // 对于DOMContentLoaded事件，立即执行，因为此时DOM已经加载完成
-                          setTimeout(listener, 0);
-                        } else {
-                          // 将事件监听器限制在当前容器内
-                          containerElement.addEventListener(type, listener, options);
-                        }
-                      },
-                      removeEventListener: function(type, listener, options) {
-                        containerElement.removeEventListener(type, listener, options);
-                      },
-                      // 保留对原始document其他属性的访问
-                      ...document
-                    }
-                  };
-                  
-                  // 在沙箱中执行脚本
-                  with (sandbox) {
-                    ${scriptContent}
-                  }
-                } catch (error) {
-                  console.error('执行内联脚本时出错:', error, error.stack);
-                }
-              })();
-            `;
-            
-            // 创建文本节点并添加到脚本
-            newScript.textContent = sandboxScript;
-            
-            // 将脚本附加到容器
-            container.appendChild(newScript);
-            
-            context.completedScripts++;
-            // 继续下一个
-            setTimeout(() => loadExternalScripts(context, index + 1), 50);
-          } catch (error) {
-            console.error('处理内联脚本时出错:', error, error.stack);
-            context.completedScripts++;
-            // 继续下一个，即使当前脚本失败
-            setTimeout(() => loadExternalScripts(context, index + 1), 50);
+            var h = Math.max(
+              document.documentElement ? document.documentElement.scrollHeight : 0,
+              document.body ? document.body.scrollHeight : 0,
+              document.documentElement ? document.documentElement.offsetHeight : 0,
+              document.body ? document.body.offsetHeight : 0
+            );
+            parent.postMessage({__htmath:true, id: '${id}', height: h}, '*');
+          } catch(e) {}
+        }
+        window.addEventListener('load', send);
+        window.addEventListener('resize', send);
+        var mo = new MutationObserver(function(){ send(); });
+        mo.observe(document.documentElement || document.body, {subtree:true, childList:true, attributes:true, characterData:true});
+        setTimeout(send, 0);
+      })();<\/script>`
+
+    let srcdocHtml = htmlContent
+    if (/<html[\s\S]*<\/html>/i.test(srcdocHtml)) {
+      if (/<\/body>/i.test(srcdocHtml)) {
+        srcdocHtml = srcdocHtml.replace(/<\/body>/i, `${resizeScript}</body>`)
+      } else {
+        srcdocHtml = srcdocHtml + resizeScript
+      }
+    } else {
+      srcdocHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">${resizeScript}</head><body>${srcdocHtml}</body></html>`
+    }
+
+    const iframe = document.createElement('iframe')
+    iframe.setAttribute('sandbox', 'allow-scripts allow-forms allow-pointer-lock allow-modals allow-popups')
+    iframe.setAttribute('referrerpolicy', 'no-referrer')
+    iframe.style.width = '100%'
+    iframe.style.border = '0'
+    iframe.style.display = 'block'
+    iframe.style.overflow = 'hidden'
+    iframe.style.minHeight = '120px'
+    iframe.srcdoc = srcdocHtml
+
+    // iframe onload 时移除加载指示器
+    iframe.addEventListener('load', () => {
+      const indicator = container.querySelector('.iframe-loading-indicator')
+      if (indicator) indicator.remove()
+    })
+
+    iframeRegistry.set(id, iframe)
+    if (!iframeResizeListenerInstalled) {
+      window.addEventListener('message', (ev) => {
+        const data = ev.data
+        if (data && data.__htmath && data.id && typeof data.height === 'number') {
+          const ifr = iframeRegistry.get(data.id)
+          if (ifr) {
+            const h = Math.max(120, data.height)
+            ifr.style.height = h + 'px'
+            // 首次收到高度更新时，也可移除加载指示器
+            const parent = ifr.parentElement
+            const indicator = parent && parent.querySelector ? parent.querySelector('.iframe-loading-indicator') : null
+            if (indicator) indicator.remove()
           }
         }
-      }
-      
-      // 开始加载脚本，使用创建的上下文
-      if (scriptContents.length > 0) {
-        setTimeout(() => loadExternalScripts(containerContext), 100)
-      }
+      })
+      iframeResizeListenerInstalled = true
     }
+
+    container.appendChild(iframe)
   } catch (error) {
     console.error('处理HTML标签时出错:', error, error.stack)
   }
 }
-// 监听内容变化
+
 watch(() => props.content, renderContent, { immediate: true })
 </script>
 
@@ -516,6 +360,31 @@ watch(() => props.content, renderContent, { immediate: true })
   border-color: #1a73e8;
 }
 
+/* iframe 加载动画 */
+.iframe-loading-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background: rgba(240,240,240,0.8);
+  border: 1px solid rgba(0,0,0,0.06);
+  border-radius: 20px;
+  color: #666;
+  font-size: 14px;
+}
+.iframe-loading-indicator .spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid #ccc;
+  border-top-color: #1a73e8;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
 .generated-image {
   max-width: 100%;
   border-radius: 10px;
@@ -625,6 +494,16 @@ table tr:nth-child(even) {
   
   .html-container:hover {
     border-color: #8ab4f8;
+  }
+
+  .iframe-loading-indicator {
+    background: rgba(42,42,42,0.7);
+    border-color: #444;
+    color: #aaa;
+  }
+  .iframe-loading-indicator .spinner {
+    border-color: #555;
+    border-top-color: #8ab4f8;
   }
   
   .image-error {

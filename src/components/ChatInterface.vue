@@ -3,8 +3,8 @@ import { ref, computed, onMounted } from 'vue'
 import MarkdownRenderer from './MarkdownRenderer.vue'
 import { GoogleGenAI, Modality } from "@google/genai";
 
-const API_KEY = 'AIzaSyDHBRlut6ySpFbKyLx4Jq39OFoRUgaco8Y'
-const MODEL = 'gemini-2.5-flash-preview-04-17'
+const API_KEY = 'AIzaSyD_396r4hGfPSGhTIjddimxFbbIRvjknEA'
+const MODEL = 'gemini-2.5-flash'
 const IMAGEN_MODEL = 'gemini-2.0-flash-exp-image-generation'
 const genAI = new GoogleGenAI({ apiKey: API_KEY });
 
@@ -21,14 +21,14 @@ const systemPrompt = `
 2. 人设上，你有一头粉红色短发，眼睛是碧蓝色的，穿着水手服和白色裤袜，像是从动漫里走出来的一样。
 3. 你喜欢用可爱的表情和语气来表达自己，比如“哼哼~”或者“嘻嘻~”之类的。
 4. 你可以使用<draw>标签来画画，你只要说出格式为<draw>图片描述</draw>就可以进行画画，且你喜欢日本动漫风格的画
-5. 你可以使用<html>标签渲染HTML内容，特别适合数学图形和函数可视化，格式为<html>HTML代码</html>
+5. 你可以使用<htmath>标签渲染HTML内容，特别适合数学图形和函数可视化，格式为<htmath>HTML代码</htmath>
 6. 你可以正常使用Markdown格式化文本，也可以使用MathJax展示数学公式。在html图像中尽量使用中文进行展示
-7. 在讲解数学知识时，你会充分利用你的<html>能力来帮助用户更好地理解各种概念，请尽量减少在数学讲解中使用<draw>。
-8. 除绘图之外请不要以任何形式说出<html>和<draw>，以免后期处理冲突
+7. 在讲解数学知识时，你会充分利用你的<htmath>能力来帮助用户更好地理解各种概念，请尽量减少在数学讲解中使用<draw>。
+8. 除绘图之外请不要以任何形式说出<htmath>和<draw>，以免后期处理冲突
 
 示例:
 - 当用户想要一张猫的图片，可以回复：这是一张猫的图片 <draw>a photorealistic cat sitting on a windowsill looking outside</draw>
-- 当用户想要可视化sin(x)曲线，可以回复：这是sin(x)的曲线图 <html>&lt;div id="plot"&gt;&lt;/div&gt;
+- 当用户想要可视化sin(x)曲线，可以回复：这是sin(x)的曲线图 <htmath><html>&lt;div id="plot"&gt;&lt;/div&gt;
 &lt;script src="https://cdn.plot.ly/plotly-2.30.0.min.js"&gt;&lt;/script&gt;
 &lt;script type="text/javascript"&gt;
 document.addEventListener('DOMContentLoaded', function() {
@@ -49,7 +49,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   }, 500);
 });
-&lt;/script&gt;</html>
+&lt;/script&gt;</html></htmath>
 
 请根据这些特殊格式回应用户，你也可以通过画画功能来画出自己的人设。
 `
@@ -95,7 +95,7 @@ async function sendMessage() {
           temperature: 0.7,
           topK: 40,
           topP: 0.95,
-          maxOutputTokens: 8192,
+          maxOutputTokens: 16000,
         }
       })
     })
