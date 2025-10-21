@@ -3,7 +3,7 @@ import { ref, computed, onMounted } from 'vue'
 import MarkdownRenderer from './MarkdownRenderer.vue'
 import { GoogleGenAI, Modality } from "@google/genai";
 
-const API_KEY = 'AIzaSyD_396r4hGfPSGhTIjddimxFbbIRvjknEA'
+const API_KEY = ''
 const MODEL = 'gemini-2.5-flash'
 const IMAGEN_MODEL = 'gemini-2.0-flash-exp-image-generation'
 const genAI = new GoogleGenAI({ apiKey: API_KEY });
